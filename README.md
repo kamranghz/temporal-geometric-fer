@@ -436,18 +436,21 @@ paper and acknowledge the CARE-AI stabilization extensions:
   author       = {Gholizadeh HamlAbadi, Kamran},
   title        = {Temporal-Geometric FER: Real-time Facial Emotion Recognition
                   with Temporal Stabilization and Hybrid 3D Geometry},
-  year         = {2025},
+  year         = {2026},
   note         = {Built on OpenFace 3.0 (CMU). CARE-AI Project,
                   University of Ottawa, MCRLab.},
   url          = {https://github.com/kamranghz/temporal-geometric-fer}
 }
 ```
+## Authors & Contributors
+
+**Kamran Gholizadeh HamlAbadi**  
+PhD Candidate, University of Ottawa · MCRLab  
+[github.com/kamranghz](https://github.com/kamranghz) · [LinkedIn](https://www.linkedin.com/in/kamrangh)
+
+> Original CARE-AI stabilization pipeline (Components 1–5), EMA training,
+> evaluation framework, and hybrid geometry integration.
 
 ---
 
-## Acknowledgements
-
-* **OpenFace 3.0** — Carnegie Mellon University  
-* **MediaPipe FaceMesh** — Google LLC  
-* **MER-SoLa** (Yun et al., 2025) — inspiration for EMA confusion-aware training  
-* **ISSSR 2025** — temporal modeling framework that informed the Stability Index design
+**OpenFace 3.0 backbone** — Carnegie Mellon University (CMU-MultiComp-Lab)
