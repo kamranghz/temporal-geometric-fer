@@ -373,59 +373,6 @@ best_acc = trainer.fit(train_loader, val_loader, epochs=30, lr=3e-4)
 print(f"Best validation accuracy: {best_acc:.2f}%")
 ```
 
----
-
-## Configuration Reference
-
-### MultiFrameAggregator
-
-| Parameter | Default | Effect |
-|---|---|---|
-| `window_size` | 5 | Number of past frames retained |
-| `tau` | 1.5 | Softmax temperature for quality weighting |
-| `lambda_weight` | 0.4 | Blend: 0 = all current frame, 1 = all window mean |
-
-### ContextAwareFilter
-
-| Parameter | Default | Effect |
-|---|---|---|
-| `w_brightness` | 0.3 | Weight for brightness sub-score |
-| `w_sharpness` | 0.3 | Weight for sharpness sub-score |
-| `w_pose` | 0.4 | Weight for pose sub-score |
-| `mode` | `'scale'` | `'scale'` or `'threshold'` adjustment mode |
-| `yaw_sensitivity` | 27.5° | Characteristic yaw decay angle |
-
-### StabilityIndex
-
-| Parameter | Default | Effect |
-|---|---|---|
-| `beta` | 0.2 | EMA reactivity (higher = more responsive) |
-| `window_size` | 30 | Frames retained for windowed SI |
-
----
-
-## Recommended Repository Name
-
-For your public GitHub release:
-
-```
-temporal-geometric-fer
-```
-
-This name precisely describes the two core contributions — **temporal
-stabilization** (Components 1–4) and **geometric fusion** (Component 5) —
-without anchoring to any upstream framework name or version number.  It is
-readable, searchable on Hugging Face, and compatible with a future Face3D
-fork.
-
-Alternative if you want to lead with the CARE-AI project identity:
-
-```
-care-ai-temporal-fer
-```
-
----
-
 ## Citation
 
 If you use this work in your research, please cite the upstream OpenFace 3.0
