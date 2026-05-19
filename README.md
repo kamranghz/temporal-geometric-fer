@@ -1,363 +1,453 @@
-# OpenFace-3.0
-## Overview
-OpenFace is a comprehensive toolkit for facial feature extraction, supporting face landmark detection, action unit detection, emotion recognition, and gaze estimation.
+# Temporal-Geometric FER
 
-![alt text](https://github.com/CMU-MultiComp-Lab/OpenFace-3.0/blob/main/images/overview2-2.png?raw=true)
+**Real-time Facial Emotion Recognition with Temporal Stabilization and Hybrid 3D Geometry**
 
+Built on top of [OpenFace 3.0](https://github.com/face-analysis/openface3.0) (Carnegie Mellon University).
+This project extends the OpenFace 3.0 multitask model with a five-component inference pipeline that dramatically reduces temporal flicker, adapts dynamically to video quality, and fuses Google MediaPipe 3D geometry with the OpenFace backbone predictions.
 
-
-This package integrates models such as RetinaFace for face detection, STAR for landmark detection, and a multitask learning model for action unit, emotion, and gaze analysis.
-
-## Features
-- **Face Detection**: Uses RetinaFace to detect faces in an image.
-- **Landmark Detection**: Uses STAR for precise facial landmark extraction.
-- **Action Unit Detection**: Uses a multitasking model to detect facial action units.
-- **Emotion Recognition**: Predicts the emotion expressed by the detected face.
-- **Gaze Estimation**: Estimates the gaze direction.
-
-## Requirements
-- Python 3.6+
-- PyTorch
-- OpenCV
-- NumPy
-- Pillow
-- gdown
-
-## Installation
-```sh
-pip install -r requirements.txt
-pip install openface-test
-openface download    #download model weights with huggingface 
-```
-Alternatively, you may manually download the model weights ([google drive](https://drive.google.com/drive/folders/1aBEol-zG_blHSavKFVBH9dzc9U9eJ92p) / [huggingface](https://huggingface.co/nutPace/openface_weights))
-
-## Usage
-
-### 1. Face Detection
-
-The `FaceDetector` class provides functionality to detect faces in images and extract the cropped face regions.
-
-#### **Initialization**
-```python
-FaceDetector(model_path: str, device: str = 'cpu', confidence_threshold: float = 0.02, nms_threshold: float = 0.4, vis_threshold: float = 0.5)
-```
-
-#### **Parameters**
-- **`model_path`** (`str`):  
-  Path to the pre-trained RetinaFace model weights file.
-
-- **`device`** (`str`, default: `'cpu'`):  
-  The device to run the model on. Choose `'cpu'` or `'cuda'` for GPU inference.
-
-- **`confidence_threshold`** (`float`, default: `0.02`):  
-  Minimum confidence score for detected faces. Lower values allow more faces to be considered, including low-confidence detections.
-
-- **`nms_threshold`** (`float`, default: `0.4`):  
-  Intersection over Union (IoU) threshold for Non-Maximum Suppression (NMS). Lower values make the NMS more aggressive, removing overlapping boxes.
-
-- **`vis_threshold`** (`float`, default: `0.5`):  
-  Minimum confidence score for displaying or outputting a face. Faces with confidence scores below this threshold are ignored.
-
-
-#### **`get_face`**
-```python
-get_face(image_path: str, resize: float = 1.0) -> Tuple[np.ndarray, np.ndarray]
-```
-Detects faces in the image and extracts the cropped face region for the highest-confidence detection.
-
-##### Parameters:
-- **`image_path`** (`str`):  
-  Path to the input image.
-
-- **`resize`** (`float`, default: `1.0`):  
-  Resizing factor for the input image. Use `1.0` to keep the original size.
-
-##### Returns:
-- **`cropped_face`** (`np.ndarray` or `None`):  
-  Cropped face region as a NumPy array in BGR format. Returns `None` if no face is detected.
-
-- **`dets`** (`np.ndarray` or `None`):  
-  Detection results for all detected faces, including bounding boxes and confidence scores. Returns `None` if no face is detected.
-
-
-#### **Example Usage**
-
-```python
-import cv2
-from openface.face_detection import FaceDetector
-
-# Initialize the FaceDetector
-model_path = './weights/Alignment_RetinaFace.pth'
-detector = FaceDetector(model_path=model_path, device='cuda')
-
-# Path to the input image
-image_path = 'path/to/input_image.jpg'
-
-# Detect and extract the face
-cropped_face, dets = detector.get_face(image_path)
-
-if cropped_face is not None:
-    print("Face detected!")
-    print(f"Detection results: {dets}")
-    
-    # Save the cropped face as an image
-    output_path = 'path/to/output_face.jpg'
-    cv2.imwrite(output_path, cropped_face)
-    print(f"Detected face saved to: {output_path}")
-else:
-    print("No face detected.")
-```
-
-### 2. Extracting Facial Landmarks
-Facial landmarks are specific points on the face that correspond to key facial features, such as the corners of the eyes, the tip of the nose, or the contour of the lips. This toolkit supports the extraction of 68 facial landmarks using the STAR model.
-
-The 68-point model identifies facial features such as the chin, eyebrows, eyes, nose, and mouth. 
-
-The `LandmarkDetector` class provides functionality to detect facial landmarks for detected faces in an image.
-
-#### **Initialization**
-```python
-LandmarkDetector(model_path: str, device: str = 'cpu', device_ids: List[int] = [-1])
-```
-
-#### **Parameters**
-- **`model_path`** (`str`):  
-  Path to the pre-trained alignment model weights file (e.g., `'./weights/Landmark_98.pkl'`).
-
-- **`device`** (`str`, default: `'cpu'`):  
-  The device to run the model on. Choose `'cpu'` or `'cuda'` for GPU inference.
-
-- **`device_ids`** (`List[int]`, default: `[-1]`):  
-  List of device IDs for multi-GPU setups. Ignored if `device='cpu'`.
-
-#### **`detect_landmarks`**
-```python
-detect_landmarks(image: np.ndarray, dets: np.ndarray, confidence_threshold: float = 0.5) -> List[np.ndarray]
-```
-Detects facial landmarks for the detected faces in an image.
-
-##### Parameters:
-- **`image`** (`np.ndarray`):  
-  Input image in BGR format, as loaded by OpenCV.
-
-- **`dets`** (`np.ndarray`):  
-  Detection results from a face detector. Each row corresponds to a face with:
-  \[
-  [x1, y1, x2, y2, confidence, ...]
-  \]
-
-- **`confidence_threshold`** (`float`, default: `0.5`):  
-  Minimum confidence score for processing a face. Faces with confidence scores below this threshold are ignored.
-
-##### Returns:
-- **`List[np.ndarray]`**:  
-  A list of detected landmarks for each face. Each entry is an array of shape \((n\_landmarks, 2)\), where \(n\_landmarks\) is the number of landmarks detected for the face.
-
-#### **Example Usage**
-
-```python
-import cv2
-from openface.face_detection import FaceDetector
-from openface.landmark_detection import LandmarkDetector
-
-# Initialize the FaceDetector
-face_model_path = './weights/Alignment_RetinaFace.pth'
-face_detector = FaceDetector(model_path=face_model_path, device='cuda')
-
-# Initialize the LandmarkDetector
-landmark_model_path = './weights/Landmark_98.pkl'
-landmark_detector = LandmarkDetector(model_path=landmark_model_path, device='cuda')
-
-# Path to the input image
-image_path = 'path/to/input_image.jpg'
-image_raw = cv2.imread(image_path)
-
-# Detect faces
-cropped_face, dets = face_detector.get_face(image_path)
-
-if dets is not None and len(dets) > 0:
-    print("Faces detected!")
-
-    # Detect landmarks
-    landmarks = landmark_detector.detect_landmarks(image_raw, dets)
-    if landmarks:
-        for i, landmark in enumerate(landmarks):
-            print(f"Landmarks for face {i}: {landmark}")
-else:
-    print("No faces detected.")
-```
-
-Here's the **MultitaskPredictor** module's usage instructions following the same structure and pattern as the previous modules.
+> **License notice** — The underlying OpenFace 3.0 model is released under CMU's *Academic / Non-profit Research Use Only* license (see [`LICENSE`](LICENSE)).  This repository adds original stabilization and evaluation components on top of that base under the same terms.
 
 ---
 
-### **3. Multitasking Predictions**
+## Why this exists
 
-The multitasking module performs three tasks simultaneously:
-1. **Emotion Recognition**: Classifies the facial expression into one of 8 emotion categories (based on the AffectNet dataset).
-2. **Gaze Estimation**: Predicts horizontal and vertical angles (yaw and pitch) representing the gaze direction.
-3. **Action Unit (AU) Detection**: Estimates the intensity of specific facial muscle activities corresponding to Action Units (AUs).
+Raw frame-by-frame FER predictions flicker severely under real-world conditions: motion blur, off-axis poses, variable lighting, and natural micro-expression dynamics all cause the predicted label to switch several times per second even when the person's emotional state is stable.  This project addresses that with a principled, modular pipeline stacked on top of the backbone:
 
-The `MultitaskPredictor` class provides functionality to perform multitasking predictions (emotion, gaze, and AU detection) for a detected face.
+| Issue | Component that addresses it |
+|---|---|
+| Frame-level noise | EMA stability (Component 1) |
+| Temporal context loss | Multi-frame aggregation (Component 2) |
+| Blind trust in low-quality frames | Context-aware filtering (Component 3) |
+| No end-to-end stability measure | Stability Index (Component 4) |
+| Limited 2D geometry | Hybrid MediaPipe 3D geometry (Component 5) |
 
-#### **Initialization**
-```python
-MultitaskPredictor(model_path: str, device: str = 'cpu')
+---
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Input Video Frame                           │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │
+          ┌─────────────────────┴──────────────────────┐
+          │                                            │
+          ▼                                            ▼
+   ┌─────────────┐                           ┌─────────────────────┐
+   │  OpenFace   │                           │  MediaPipe FaceMesh │
+   │  MLT Model  │                           │  (478 landmarks)    │
+   │  (EfficNet) │                           └──────────┬──────────┘
+   └──────┬──────┘                                      │
+          │  emotion logits                             │ LandmarkMapper
+          │  gaze, AU scores                            │ 478 → 98 points
+          │                                             │
+          └─────────────┬───────────────────────────────┘
+                        │   raw_probs [8]  +  geometry
+                        │
+            ┌───────────▼───────────┐
+            │  Component 1 · EMA   │   Exponential moving average
+            │  Stability            │   with confusion-aware soft labels
+            └───────────┬───────────┘
+                        │ ema_probs [8]
+            ┌───────────▼───────────┐
+            │  Component 3 · CAF   │   Quality score from brightness,
+            │  Context-Aware Filter │   sharpness, and head pose
+            └───────────┬───────────┘
+                        │ ema_probs, c_qual
+            ┌───────────▼───────────┐
+            │  Component 2 · MFA   │   Quality-weighted window average
+            │  Multi-Frame Aggreg.  │   over last N frames
+            └───────────┬───────────┘
+                        │ stable_probs [8]
+            ┌───────────▼───────────┐
+            │  Component 4 · SI    │   Online temporal consistency
+            │  Stability Index      │   metric (0–1 scalar)
+            └───────────┬───────────┘
+                        │
+                        ▼
+              Final Emotion Prediction
+              + per-frame Stability Index
 ```
 
-#### **Parameters**
-- **`model_path`** (`str`):  
-  Path to the pre-trained multitasking model weights file.
+### Component summaries
 
-- **`device`** (`str`, default: `'cpu'`):  
-  The device to run the model on. Choose `'cpu'` or `'cuda'` for GPU inference.
+#### Component 1 — EMA Stability (`ema_stability/`)
 
-#### **`predict`**
-```python
-predict(face: np.ndarray) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+Applies an exponential moving average to the raw softmax output to suppress
+single-frame spikes:
+
 ```
-Performs multitasking predictions (emotion, gaze, and action units) on the input face.
+ema_t = α · raw_t  +  (1 − α) · ema_{t-1}
+```
 
-##### Parameters:
-- **`face`** (`np.ndarray`):  
-  Cropped face image.
+Also includes **EMA confusion-aware soft labels** for model training
+(`EMAStabilityTrainer`): a running EMA confusion matrix is used to construct
+per-sample soft labels, downweighting classes that are rarely confused and
+up-weighting the true class relative to its most frequent confusors.  This
+reduces neutral-class overconfidence — a known issue on AffectNet-8.
 
-##### Returns:
-- **`Tuple[torch.Tensor, torch.Tensor, torch.Tensor]`**:  
-  - **Emotion Output** (`torch.Tensor`): Logits for emotion categories.  
-  - **Gaze Output** (`torch.Tensor`): Predicted yaw and pitch angles.  
-  - **Action Unit Output** (`torch.Tensor`): Predicted intensities for action units.
+#### Component 2 — Multi-Frame Aggregation (`multi_frame_aggregation/`)
 
-#### **Task Descriptions**
+Maintains a sliding window of recent frames.  Each frame is weighted by its
+geometric quality score before aggregation.  Weights are scaled by a softmax
+temperature *τ* so high-quality frames dominate the window mean:
 
-##### **Emotion Recognition**
-Emotion recognition uses 8 categories derived from the AffectNet dataset to classify facial expressions:
+```
+w_i  = softmax(q_i · τ)
+p̂   = Σ_i w_i · probs_i
+out  = λ · p̂  +  (1 − λ) · probs_current
+```
 
-| Index | Emotion   |
-|-------|-----------|
-| 0     | Neutral   |
-| 1     | Happy     |
-| 2     | Sad       |
-| 3     | Surprise  |
-| 4     | Fear      |
-| 5     | Disgust   |
-| 6     | Anger     |
-| 7     | Contempt  |
+#### Component 3 — Context-Aware Filtering (`context_aware_filtering/`)
 
-The model predicts the most likely emotion for the detected face.
+Computes a per-frame scalar quality score *c_qual ∈ [0, 1]* as a weighted
+combination of three sub-scores:
 
-##### **Gaze Estimation**
-Gaze estimation predicts two continuous values:
-- **Yaw**: Horizontal gaze direction (left or right).
-- **Pitch**: Vertical gaze direction (up or down).
+| Sub-score | Formula | Default weight |
+|---|---|---|
+| Brightness | clip((μ − μ_min)/(μ_max − μ_min), 0, 1) | 0.30 |
+| Sharpness  | clip((LAP − LAP_min)/(LAP_max − LAP_min), 0, 1) | 0.30 |
+| Pose       | exp(−(\|yaw\|/Y₀ + \|pitch\|/P₀)) | 0.40 |
 
-##### **Action Unit Detection**
-Action Units (AUs) describe facial muscle movements corresponding to specific expressions. The multitasking model predicts the intensity of these AUs (e.g., AU1 for inner brow raise, AU6 for cheek raise).
+In **scale mode** the quality score directly down-scales model confidence
+(`c_adj = c_model × c_qual`).  In **threshold mode** it raises the acceptance
+threshold adaptively (`τ_t = τ₀(1 + k(1 − c_qual))`).
 
+#### Component 4 — Stability Index (`temporal_stability/`)
 
-#### **Example Usage**
+An online metric (not a filter) that reports how stable the predicted emotion
+stream is, updated every frame:
+
+```
+D_t  = 0.5 · ‖q̂_t − q̂_{t−1}‖₁          # Total variation distance
+ω_t  = c_confidence × c_quality           # Trust weight
+s_t  = 1 − ω_t · D_t / (ω_t + ε)         # Per-frame score
+SI_t = (1 − β) · SI_{t-1} + β · s_t      # EMA update
+```
+
+Values above 0.8 indicate a stable stream; values below 0.6 indicate
+significant flicker.  A windowed variant is also computed for segment
+reports.
+
+#### Component 5 — Hybrid Geometry (`hybrid_geometry/`)
+
+Replaces OpenFace's RetinaFace-based 2D alignment with MediaPipe FaceMesh
+for 3D landmark extraction.  A fixed index-selection map converts MediaPipe's
+478-point canonical format to OpenFace's 98-point layout:
+
+```
+L₉₈ = X₄₇₈[idx],   idx ∈ ℤ⁹⁸
+```
+
+The hybrid path improves robustness under partial occlusion and off-axis
+poses, where MediaPipe's 3D reconstruction is more stable than the RetinaFace
+2D detector.
+
+---
+
+## Repository Structure
+
+```
+temporal-geometric-fer/
+│
+├── model/                         # OpenFace 3.0 backbone (upstream CMU)
+│   ├── MLT.py                     # Multitask EfficientNet-B0 model
+│   ├── AU_model.py                # GNN head for Action Unit regression
+│   └── AutomaticWeightedLoss.py   # Uncertainty-weighted multi-task loss
+│
+├── ema_stability/                 # Component 1
+│   ├── ema_trainer.py             # Training loop with confusion-aware soft labels
+│   └── confusion_utils.py         # EMA confusion matrix utilities
+│
+├── multi_frame_aggregation/       # Component 2
+│   ├── aggregator.py              # MultiFrameAggregator (quality-weighted window)
+│   └── quality_metrics.py         # Geometric quality scoring
+│
+├── context_aware_filtering/       # Component 3
+│   ├── context_filter.py          # ContextAwareFilter
+│   └── quality_scoring.py         # Brightness / sharpness / pose sub-scores
+│
+├── temporal_stability/            # Component 4
+│   └── stability_index.py         # StabilityIndex (online SI + windowed SI)
+│
+├── hybrid_geometry/               # Component 5
+│   ├── mediapipe_bridge.py        # MediaPipe FaceMesh wrapper
+│   ├── landmark_mapping.py        # 478 → 98 landmark re-index
+│   └── openface_wrapper.py        # MLT inference wrapper
+│
+├── weights/
+│   └── README.md                  # Weight download links (not stored in git)
+│
+├── evaluation_logger.py           # Dual-pipeline JSONL session logger
+├── dual_run.py                    # Launcher: OpenFace-only vs Hybrid side-by-side
+├── test_evaluation_logger.py      # Logger unit tests
+│
+├── requirements.txt
+├── LICENSE                        # CMU academic/non-profit use only
+└── README.md
+```
+
+---
+
+## Installation
+
+**Prerequisites**: Python 3.10+, a CUDA-capable GPU (optional but recommended).
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/kamranghz/temporal-geometric-fer.git
+cd temporal-geometric-fer
+
+# 2. Create and activate a virtual environment
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# Linux / macOS
+source venv/bin/activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Download model weights
+# Follow the instructions in weights/README.md to download:
+#   weights/MTL_backbone.pth       (OpenFace 3.0 multitask backbone)
+#   weights/Alignment_RetinaFace.pth
+```
+
+MediaPipe is listed as optional — it is only required for Component 5
+(Hybrid Geometry).  If you only need Components 1–4, you may skip it:
+
+```bash
+pip install mediapipe>=0.10.0
+```
+
+---
+
+## Quick Start
+
+### 1. Single-frame inference
 
 ```python
+from hybrid_geometry import OpenFaceWrapper
+
+model = OpenFaceWrapper(model_path="weights/MTL_backbone.pth", device="cpu")
+
 import cv2
-from openface.face_detection import FaceDetector
-from openface.multitask_model import MultitaskPredictor
+frame = cv2.imread("my_face.jpg")
+result = model.predict(frame)
 
-# Initialize the FaceDetector
-face_model_path = './weights/Alignment_RetinaFace.pth'
-face_detector = FaceDetector(model_path=face_model_path, device='cuda')
-
-# Initialize the MultitaskPredictor
-multitask_model_path = './weights/MTL_backbone.pth'
-multitask_model = MultitaskPredictor(model_path=multitask_model_path, device='cuda')
-
-# Path to the input image
-image_path = 'path/to/input_image.jpg'
-
-# Detect face (returns cropped face as NumPy array and detection results)
-cropped_face, dets = face_detector.get_face(image_path)
-
-if cropped_face is not None and dets is not None:
-    print("Face detected!")
-
-    # Perform multitasking predictions
-    emotion_logits, gaze_output, au_output = multitask_model.predict(cropped_face)
-
-    # Process emotion output
-    emotion_index = torch.argmax(emotion_logits, dim=1).item()  # Get the predicted emotion index
-    print(f"Predicted Emotion Index: {emotion_index}")
-
-    # Process gaze output
-    print(f"Predicted Gaze (Yaw, Pitch): {gaze_output}")
-
-    # Process action units
-    print(f"Predicted Action Units (Intensities): {au_output}")
-else:
-    print("No face detected.")
+print(result["emotion_label"])   # e.g. "Happy"
+print(result["emotion_probs"])   # softmax probabilities over 8 classes
 ```
 
+### 2. Stabilised inference pipeline
 
+```python
+import numpy as np
+from hybrid_geometry import OpenFaceWrapper
+from ema_stability import EMAStabilityTrainer  # training
+from multi_frame_aggregation import MultiFrameAggregator
+from context_aware_filtering import ContextAwareFilter
+from temporal_stability import StabilityIndex
 
+model      = OpenFaceWrapper("weights/MTL_backbone.pth")
+aggregator = MultiFrameAggregator(window_size=5)
+quality    = ContextAwareFilter()
+stability  = StabilityIndex()
 
-### 4. Command-Line Interface (CLI)
+ema_probs = None
+alpha     = 0.3  # EMA factor
 
-OpenFace 3.0 provides a simple command-line interface for running the full facial behavior analysis pipeline, including face detection, landmark extraction, emotion recognition, gaze estimation, and action unit prediction.
+for face_bgr in video_frame_generator():
+    result = model.predict(face_bgr)
+    raw    = result["emotion_probs"]
 
-#### **Usage**
+    # Component 1 — EMA
+    ema_probs = alpha * raw + (1 - alpha) * ema_probs if ema_probs is not None else raw
+
+    # Component 3 — Context-aware quality
+    q = quality.update(probs=ema_probs, brightness=get_brightness(face_bgr),
+                       sharpness=get_sharpness(face_bgr))
+
+    # Component 2 — Multi-frame aggregation
+    agg = aggregator.update(ema_probs, brightness=q["c_qual"])
+    stable = agg["stable_probs"]
+
+    # Component 4 — Stability Index
+    si = stability.update(stable, confidence=float(np.max(stable)), quality=q["c_qual"])
+
+    print(f'{result["emotion_label"]:10s}  SI={si["SI"]:.3f}  ({stability.stability_level(si["SI"])})')
+```
+
+### 3. Hybrid geometry (MediaPipe 3D landmarks)
+
+```python
+from hybrid_geometry import MediaPipeBridge, LandmarkMapper, OpenFaceWrapper
+import cv2
+
+bridge  = MediaPipeBridge(refine_landmarks=True)
+mapper  = LandmarkMapper(scale_to_pixels=False)
+wrapper = OpenFaceWrapper("weights/MTL_backbone.pth")
+
+cap = cv2.VideoCapture(0)
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    landmarks, pose = bridge.extract_with_pose(frame)
+    if landmarks is not None:
+        lm_98  = mapper.map(landmarks)          # (98, 3) in OpenFace format
+        result = wrapper.predict(frame)
+        print(f'{result["emotion_label"]}  yaw={pose["yaw"]:.1f}°')
+
+bridge.close()
+cap.release()
+```
+
+### 4. Dual-pipeline evaluation (OpenFace-only vs Hybrid)
 
 ```bash
-openface detect "path/to/image.jpg" --output-dir "./results" --device cpu
+python dual_run.py --log_dir logs/session_01
 ```
 
-#### **Arguments**
-
-* **`image_path`** (`str`):
-  Path to the input image file.
-
-* **`--output-dir`** (`str`, optional):
-  Directory to save the output results. The output will be saved as a TSV file. Default is the current directory.
-
-* **`--device`** (`str`, optional):
-  Device to run inference on. Options: `'cpu'` or `'cuda'`. Default is `'cpu'`.
-
-#### **Output Format**
-
-The CLI will generate a `.tsv` file containing predictions with the following columns:
-
-| Column Name      | Description                                   |
-| ---------------- | --------------------------------------------- |
-| `timestamp`      | Time of processing (in seconds since epoch)   |
-| `image_path`     | Path to the input image                       |
-| `face_id`        | Face ID (in case of multiple faces)           |
-| `face_detection` | Bounding box coordinates and confidence score |
-| `landmarks`      | 2D facial landmark coordinates                |
-| `emotion`        | Predicted emotion label                       |
-| `gaze_yaw`       | Predicted yaw angle (horizontal gaze)         |
-| `gaze_pitch`     | Predicted pitch angle (vertical gaze)         |
-| `action_units`   | AU intensity predictions                      |
-
-#### **Example**
-
-```bash
-openface detect "0.jpg" --output-dir "./" --device cpu
-```
-
-This will process the image `0.jpg` and save the result as a `.tsv` file in the current directory.
-
-## **Citation and Contact**
-
-Please cite this paper if you use OpenFace 3.0 in your research.
-
-ArXiv citation below (FG 2025 Proceedings not yet online):  
+Two JSONL files are written to `logs/session_01/`:
 
 ```
-@article{hu2025openface,
-  title={OpenFace 3.0: A Lightweight Multitask System for Comprehensive Facial Behavior Analysis},
-  author={Hu, Jiewen and Mathur, Leena and Liang, Paul Pu and Morency, Louis-Philippe},
-  journal={arXiv preprint arXiv:2506.02891},
-  year={2025}
+openface_only.jsonl     # OpenFace backbone alone
+hybrid_geometric.jsonl  # OpenFace + MediaPipe geometry
+```
+
+Each line is a fully self-contained JSON record:
+
+```json
+{
+  "timestamp": 1747615200.123,
+  "elapsed_seconds": 3.7,
+  "frame_index": 111,
+  "dataset_source": "LiveUser",
+  "pipeline_type": "HybridGeometric",
+  "raw_probabilities": [0.42, 0.31, 0.09, ...],
+  "raw_label": "Neutral",
+  "ema_probabilities": [0.38, 0.34, 0.11, ...],
+  "ema_label": "Neutral",
+  "frame_to_frame_change": 0.042,
+  "stability_index": 0.871,
+  "confidence_score": 0.912,
+  "quality_score": 0.784,
+  "flicker_rate_30f": 2.1,
+  "label_switching_rate": 0.063
 }
 ```
 
-If you have any questions, please open a Github issue on this repository.
+### 5. Run logger unit tests
 
+```bash
+python test_evaluation_logger.py
+```
 
+---
+
+## Training with EMA Soft Labels
+
+The `EMAStabilityTrainer` wraps any PyTorch model that outputs emotion logits.
+Pass a standard `DataLoader` and it handles the confusion-aware soft-label
+construction automatically:
+
+```python
+import torch
+from model import MLT
+from ema_stability import EMAStabilityTrainer
+
+model   = MLT(base_model_name="tf_efficientnet_b0_ns", expr_classes=8, au_numbers=8)
+trainer = EMAStabilityTrainer(
+    model=model,
+    num_classes=8,
+    beta=0.9,          # EMA decay for confusion matrix
+    delta=0.15,        # confusion threshold
+    lambda_weight=0.8, # balance: 1.0 = pure CE, 0.0 = pure soft NLL
+    device="cuda",
+)
+
+best_acc = trainer.fit(train_loader, val_loader, epochs=30, lr=3e-4)
+print(f"Best validation accuracy: {best_acc:.2f}%")
+```
+
+---
+
+## Configuration Reference
+
+### MultiFrameAggregator
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `window_size` | 5 | Number of past frames retained |
+| `tau` | 1.5 | Softmax temperature for quality weighting |
+| `lambda_weight` | 0.4 | Blend: 0 = all current frame, 1 = all window mean |
+
+### ContextAwareFilter
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `w_brightness` | 0.3 | Weight for brightness sub-score |
+| `w_sharpness` | 0.3 | Weight for sharpness sub-score |
+| `w_pose` | 0.4 | Weight for pose sub-score |
+| `mode` | `'scale'` | `'scale'` or `'threshold'` adjustment mode |
+| `yaw_sensitivity` | 27.5° | Characteristic yaw decay angle |
+
+### StabilityIndex
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `beta` | 0.2 | EMA reactivity (higher = more responsive) |
+| `window_size` | 30 | Frames retained for windowed SI |
+
+---
+
+## Recommended Repository Name
+
+For your public GitHub release:
+
+```
+temporal-geometric-fer
+```
+
+This name precisely describes the two core contributions — **temporal
+stabilization** (Components 1–4) and **geometric fusion** (Component 5) —
+without anchoring to any upstream framework name or version number.  It is
+readable, searchable on Hugging Face, and compatible with a future Face3D
+fork.
+
+Alternative if you want to lead with the CARE-AI project identity:
+
+```
+care-ai-temporal-fer
+```
+
+---
+
+## Citation
+
+If you use this work in your research, please cite the upstream OpenFace 3.0
+paper and acknowledge the CARE-AI stabilization extensions:
+
+```bibtex
+@misc{careai-temporal-geometric-fer,
+  author       = {Gholizadeh HamlAbadi, Kamran},
+  title        = {Temporal-Geometric FER: Real-time Facial Emotion Recognition
+                  with Temporal Stabilization and Hybrid 3D Geometry},
+  year         = {2025},
+  note         = {Built on OpenFace 3.0 (CMU). CARE-AI Project,
+                  University of Ottawa, MCRLab.},
+  url          = {https://github.com/kamranghz/temporal-geometric-fer}
+}
+```
+
+---
+
+## Acknowledgements
+
+* **OpenFace 3.0** — Carnegie Mellon University  
+* **MediaPipe FaceMesh** — Google LLC  
+* **MER-SoLa** (Yun et al., 2025) — inspiration for EMA confusion-aware training  
+* **ISSSR 2025** — temporal modeling framework that informed the Stability Index design

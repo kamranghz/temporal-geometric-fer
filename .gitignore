@@ -1,2 +1,44 @@
+# ── Python ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ───────────────────────────────────────────────
+venv/
+env/
+.venv/
+.env/
+
+# ── Model weights ─────────────────────────────────────────────────────
+# Large binary checkpoints — download instructions in weights/README.md
+weights/*.pth
 weights/*.pkl
 weights/*.bin
+weights/*.pt
+
+# ── Evaluation logs ───────────────────────────────────────────────────
+# Runtime output; not part of the source tree
+logs/
+
+# ── Notebooks ─────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── OS / editor artefacts ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# ── Misc ──────────────────────────────────────────────────────────────
+*.log
+*.tmp
+feature_maps_output/
+test_videos/
